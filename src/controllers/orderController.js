@@ -235,6 +235,20 @@ const modifyOrder = async (req, res) => {
         const device_mac = req.headers["device_mac"] || null;
         const user_id = req.headers["userid"] || null;
         const internaltype = req.headers["internaltype"] || null;
+
+        const {
+            transactiontype,
+            squareoff,
+            stoploss,
+            script
+        } = body;
+
+        // Angel one body se ye fields hata do (safety)
+        delete body.transactiontype;
+        delete body.squareoff;
+        delete body.stoploss;
+        delete body.script;
+
         const url =
             "https://apiconnect.angelone.in/rest/secure/angelbroking/order/v1/modifyOrder";
 
@@ -253,78 +267,92 @@ const modifyOrder = async (req, res) => {
         });
 
         const r = response.data;
-        // const d = r.data || {};
+        const d = r.data || {};
+        console.log("d1234567890", d);
+        await pool.query(
+            `
+            INSERT INTO orders_transactions (
+                user_ip, device_mac, user_id, internal_order_id, broker, interal_type,
+                order_timestamp, variety, tradingsymbol, symboltoken, transactiontype,
+                exchange, ordertype, producttype, duration, price, quantity,
+                response_timestamp, status, message, error_code, script,
+                orderid, unique_order_id, transactiontype, squareoff, stoploss, script
+            )
+            VALUES (
+                $1,$2,$3,$4,$5,$6,
+                NOW(),$7,$8,$9,$10,
+                $11,$12,$13,$14,$15,$16,
+                NOW(),$17,$18,$19,$20,
+                $21,$22,$23,$24,$25,$26
+            )
+        `,
+            [
+                user_ip,
+                device_mac,
+                user_id,
+                2,                  // MODIFY
+                1,                  // Broker
+                internaltype,
+                body.variety || "NORMAL",
+                body.tradingsymbol,
+                body.symboltoken,
+                null,               // MODIFY me buy/sell change nahi hota
+                body.exchange,
+                body.ordertype,
+                body.producttype,
+                body.duration,
+                body.price,
+                body.quantity,
+                r.status,
+                r.message,
+                r.errorcode,
+                d.script,
+                body.orderid,
+                d?.uniqueorderid || null,
+                transactiontype,
+                squareoff,
+                stoploss,
+                script
+            ]
+        );
 
-        // await pool.query(
-        //     `
-        //     INSERT INTO orders_transactions (
-        //         user_ip, device_mac, user_id, internal_order_id, broker, interal_type,
-        //         order_timestamp, variety, tradingsymbol, symboltoken, transactiontype,
-        //         exchange, ordertype, producttype, duration, price, quantity,
-        //         response_timestamp, status, message, error_code, script,
-        //         orderid, unique_order_id
-        //     )
-        //     VALUES (
-        //         $1,$2,$3,$4,$5,$6,
-        //         NOW(),$7,$8,$9,$10,
-        //         $11,$12,$13,$14,$15,$16,
-        //         NOW(),$17,$18,$19,$20,
-        //         $21,$22
-        //     )
-        // `,
-        //     [
-        //         user_ip,
-        //         device_mac,
-        //         user_id,
-        //         2,                  // MODIFY
-        //         1,                  // Broker
-        //         internaltype,
-        //         body.variety || "NORMAL",
-        //         body.tradingsymbol,
-        //         body.symboltoken,
-        //         null,               // MODIFY me buy/sell change nahi hota
-        //         body.exchange,
-        //         body.ordertype,
-        //         body.producttype,
-        //         body.duration,
-        //         body.price,
-        //         body.quantity,
-        //         r.status,
-        //         r.message,
-        //         r.errorcode,
-        //         d.script,
-        //         body.orderid,
-        //         d?.uniqueorderid || null
-        //     ]
-        // );
+        const upd = await pool.query(
+            `
+    UPDATE order_status 
+    SET 
+        price = $1::numeric,
+        quantity = $2::numeric,
+        product_type = $3,
+        order_type = $4,
+        duration = $5,
+        interal_type = $7,
+        internal_order_id = 2,
+        sqaure_off = $8,
+        stop_loss = $9,
+        response_timestamp = NOW()
+    WHERE orderid::text = $6::text
+    RETURNING *;
+    `,
+            [
+                body.price,        // $1
+                body.quantity,     // $2
+                body.producttype,  // $3
+                body.ordertype,    // $4
+                body.duration,     // $5
+                body.orderid,      // $6  (WHERE condition)
+                internaltype,      // $7
+                squareoff,         // $8
+                stoploss           // $9
+            ]
+        );
 
-        // // 🟥 UPDATE LIVE STATUS TABLE
-        // await pool.query(
-        //     `
-        //     UPDATE orders_status 
-        //     SET 
-        //         price = $1,
-        //         quantity = $2,
-        //         producttype = $3,
-        //         ordertype = $4,
-        //         duration = $5,
-        //         updated_at = NOW()
-        //     WHERE orderid = $6
-        // `,
-        //     [
-        //         body.price,
-        //         body.quantity,
-        //         body.producttype,
-        //         body.ordertype,
-        //         body.duration,
-        //         body.orderid
-        //     ]
-        // );
 
         return res.json({
             success: true,
-            angelResponse: r
+            angelResponse: r,
+            updatedOrder: upd.rows[0]
         });
+
 
     } catch (error) {
         return res.status(500).json({
@@ -375,16 +403,12 @@ const cancelOrder = async (req, res) => {
         const insertSql = `
             INSERT INTO orders_transactions (
                 user_ip, device_mac, user_id, internal_order_id, broker, interal_type,
-                order_timestamp, variety, tradingsymbol, symboltoken, transactiontype,
-                exchange, ordertype, producttype, duration, price, squareoff, stoploss,
-                quantity, response_timestamp, status, message, error_code, script,
+                order_timestamp, variety, response_timestamp, status, message, error_code,
                 orderid, unique_order_id
             )
             VALUES (
                 $1,$2,$3,$4,$5,$6,
-                NOW(),$7,null,null,null,
-                null,null,null,null,null,null,null,
-                null,NOW(),$8,$9,$10,null,
+                NOW(),$7,NOW(),$8,$9,$10,
                 $11,$12
             )
         `;
@@ -396,13 +420,10 @@ const cancelOrder = async (req, res) => {
             3,
             1,
             "Cancel",
-
             body.variety,
-
             r.status,
             r.message,
             r.errorcode,
-
             d.orderid,
             d.uniqueorderid
         ]);
@@ -444,95 +465,6 @@ const cancelOrder = async (req, res) => {
         });
     }
 };
-
-
-// const cancelOrder = async (req, res) => {
-//     const pool = getPool();
-
-//     try {
-//         const body = req.body;  // { variety, orderid }
-
-//         const authToken = req.headers["authorization"]?.replace("Bearer ", "");
-//         const user_ip = req.ip || req.headers["x-forwarded-for"] || null;
-//         const device_mac = req.headers["device_mac"] || null;
-//         const user_id = req.headers["userid"] || null;
-
-
-//         const angelUrl =
-//             "https://apiconnect.angelone.in/rest/secure/angelbroking/order/v1/cancelOrder";
-
-//         // 1️⃣ Call Angel One Cancel API
-//         const response = await axios.post(angelUrl, {
-//             variety: body.variety,
-//             orderid: body.orderid
-//         }, {
-//             headers: {
-//                 "Authorization": "Bearer " + authToken,
-//                 "Content-Type": "application/json",
-//                 "X-UserType": "USER",
-//                 "X-SourceID": "WEB",
-//                 "X-ClientLocalIP": "192.168.1.101",
-//                 "X-ClientPublicIP": "103.55.41.12",
-//                 "X-MACAddress": "10-02-B5-43-0E-B8",
-//                 "X-PrivateKey": process.env.API_KEY
-//             }
-//         });
-
-//         const r = response.data;
-//         const d = r.data || {};
-
-//         // 2️⃣ INSERT INTO DB
-//         const insertSql = `
-//             INSERT INTO orders_transactions (
-//                 user_ip, device_mac, user_id, internal_order_id, broker, interal_type,
-//                 order_timestamp, variety, tradingsymbol, symboltoken, transactiontype,
-//                 exchange, ordertype, producttype, duration, price, squareoff, stoploss,
-//                 quantity, response_timestamp, status, message, error_code, script,
-//                 orderid, unique_order_id
-//             )
-//             VALUES (
-//                 $1,$2,$3,$4,$5,$6,
-//                 NOW(),$7,null,null,null,
-//                 null,null,null,null,null,null,null,
-//                 null,NOW(),$8,$9,$10,null,
-//                 $11,$12
-//             )
-//         `;
-
-//         await pool.query(insertSql, [
-//             user_ip,
-//             device_mac,
-//             user_id,
-//             3,                     // internal_order_id → CANCEL
-//             1,                     // broker
-//             "CANCEL",              // interal_type
-
-//             body.variety,
-
-//             r.status,
-//             r.message,
-//             r.errorcode,
-
-//             d.orderid,
-//             d.uniqueorderid
-//         ]);
-
-//         return res.json({
-//             success: true,
-//             angelResponse: r
-//         });
-
-//     } catch (error) {
-//         console.error("Cancel Order Error:", error);
-
-//         return res.status(500).json({
-//             success: false,
-//             error: error.message,
-//             angelError: error.response?.data
-//         });
-//     }
-// };
-
 
 module.exports = {
     getOrder, placeOrder, cancelOrder, modifyOrder

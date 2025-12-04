@@ -164,7 +164,6 @@ async function main() {
   let successCount = 0;
   let failCount = 0;
 
-  console.log("stock", stocks);
   for (let i = 0; i < stocks.length; i++) {
     const stock = stocks[i];
 

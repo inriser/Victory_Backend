@@ -23,7 +23,6 @@ let defaultPool;
 const getPool = () => {
     if (!defaultPool) {
         defaultPool = new Pool(defaultConfig);
-        console.log('Connected to default PostgreSQL database');
     }
     return defaultPool;
 };

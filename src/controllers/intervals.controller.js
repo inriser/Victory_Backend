@@ -2,8 +2,6 @@ const { getAllIntervalsData, getIntervalData } = require('../services/marketData
 const { asyncHandler } = require('../utils/asyncHandler.js');
 
 const fetchIntervalData = asyncHandler(async (req, res) => {
-  console.log("🔥 Incoming /intervals Query:", req.query);
-
   const { symbol, interval, limit } = req.query;
 
   if (!symbol) {
@@ -27,8 +25,6 @@ const fetchIntervalData = asyncHandler(async (req, res) => {
 });
 
 const fetchAllIntervals = asyncHandler(async (req, res) => {
-  console.log("🔥 Incoming /intervals/all Query:", req.query);
-
   const { symbol } = req.query;
 
   if (!symbol) {

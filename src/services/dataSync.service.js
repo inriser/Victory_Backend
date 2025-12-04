@@ -13,7 +13,7 @@ class DataSyncService {
       // Check if data already exists (unless force is true)
       if (!force) {
         const dataExists = await hasHistoricalData(symbol);
-        
+
         if (dataExists) {
           return { symbol, skipped: true, message: 'Data already exists' };
         }
@@ -28,7 +28,7 @@ class DataSyncService {
 
       const formatDate = (d) => d.toISOString().split('T')[0] + ' 09:15';
 
-      
+
       const dailyData = await angelService.getHistoricalData({
         symbolToken,
         interval: 'ONE_DAY',
@@ -62,7 +62,7 @@ class DataSyncService {
       // 2. Fetch 1-Minute Candles (Last 30 Days) - Store as FULL OHLC
       const fromDateIntraday = new Date();
       fromDateIntraday.setDate(fromDateIntraday.getDate() - 30); // Last 30 days
-      
+
 
       const minuteData = await angelService.getHistoricalData({
         symbolToken,
@@ -112,12 +112,12 @@ class DataSyncService {
 
     try {
       const results = [];
-      
+
       // Sync each symbol sequentially to avoid rate limiting
       for (const symbol of this.symbols) {
         const result = await this.syncHistoricalData(symbol, force);
         results.push(result);
-        
+
         // Small delay between symbols to avoid API rate limits
         await new Promise(resolve => setTimeout(resolve, 2000)); // 2 seconds delay
       }
@@ -126,7 +126,7 @@ class DataSyncService {
       const totalDailyCandles = results.reduce((sum, r) => sum + (r.dailyCandles || 0), 0);
       const totalMinuteCandles = results.reduce((sum, r) => sum + (r.minuteCandles || 0), 0);
       const skipped = results.filter(r => r.skipped).length;
-      
+
       return results;
     } catch (error) {
       console.error('[DataSync] ✗ Sync failed:', error.message);
@@ -139,12 +139,12 @@ class DataSyncService {
   async initialSync() {
     // Check if any data exists for the first symbol
     const dataExists = await hasHistoricalData(this.symbols[0]);
-    
+
     if (dataExists) {
       console.log('[DataSync] Data already exists, skipping initial sync');
       return;
     }
-    
+
     await this.syncAllSymbols(false);
   }
 
@@ -154,6 +154,6 @@ class DataSyncService {
   }
 }
 
- const dataSyncService = new DataSyncService();
+const dataSyncService = new DataSyncService();
 
- module.exports={dataSyncService}
+module.exports = { dataSyncService }

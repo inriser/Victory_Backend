@@ -3,8 +3,7 @@ const { tsClient } = require('../db/timescaleClient.js');
 const fs = require('fs');
 const path = require('path');
 
-// __dirname is already available in CommonJS — no need for import.meta.url
-const scriptsPath = path.join(__dirname, '../scripts/symbolNames.json');
+const scriptsPath = path.join(__dirname, '../script/symbolNames.json');
 
 const getAvailableSymbols = asyncHandler(async (req, res) => {
  
@@ -26,7 +25,6 @@ const getAvailableSymbols = asyncHandler(async (req, res) => {
   let result;
   try {
     result = await tsClient.query(query);
-    console.log('result',result)
   } catch (err) {
     console.warn('Error querying market_snapshot, falling back to candles_ohlc:', err.message);
     result = await tsClient.query(
@@ -36,7 +34,6 @@ const getAvailableSymbols = asyncHandler(async (req, res) => {
 
   const symbols = result.rows.map(row => row.symbol);
 
-  // Load stock names from symbolNames.json
   let stockNames = {};
   try {
     const data = fs.readFileSync(scriptsPath, 'utf8');
