@@ -7,29 +7,17 @@ const { timescaleClient } = require('../../db/timescaleClient.js');
 const { env } = require('../../config/env.js');
 const { logger } = require('../../config/logger.js');
 const { redisClient } = require('../../db/redisClient.js');
-const { realtimeAggregatorService } = require('./realtimeAggregator.service.js');
+const realtimeAggregatorService = require('./realtimeAggregator.service.js');
+const TradingModel = require('../../models/trading.model.js');
 
 
-// Load Token Map
+
+
+// Token Map (Loaded from DB)
 let tokenMap = {};
-try {
-  const mapPath = path.join(__dirname, '../../config/tokenMap.json');
-  if (fs.existsSync(mapPath)) {
-    tokenMap = JSON.parse(fs.readFileSync(mapPath, 'utf8'));
-    logger.info(`[AngelWS-V2] Loaded ${Object.keys(tokenMap).length} tokens from map.`);
-  } else {
-    logger.warn('[AngelWS-V2] tokenMap.json not found. Using default fallback.');
-    tokenMap = {
-      '3045': 'SBIN',
-      '1594': 'INFY',
-      '11536': 'TCS',
-      '2885': 'RELIANCE',
-      '1333': 'HDFCBANK'
-    };
-  }
-} catch (err) {
-  logger.error(`[AngelWS-V2] Error loading token map: ${err.message}`);
-}
+
+// We will load this in init()
+// const loadTokenMap = async () => { ... }
 
 class AngelWebSocketServiceV2 {
   constructor() {
@@ -81,8 +69,17 @@ class AngelWebSocketServiceV2 {
       .int64('close_price_day', { formatter: numberFormatter });
   }
 
-  init(broadcastCallback) {
+  async init(broadcastCallback) {
     this.broadcastCallback = broadcastCallback;
+
+    try {
+      // Load tokens from DB
+      tokenMap = await TradingModel.getTokenMap();
+      logger.info(`[AngelWS-V2] Loaded ${Object.keys(tokenMap).length} tokens from Database.`);
+    } catch (err) {
+      logger.error(`[AngelWS-V2] Failed to load token map from DB: ${err.message}`);
+    }
+
     this.connect();
     this.startSnapshotUpdater();
   }
@@ -320,7 +317,8 @@ class AngelWebSocketServiceV2 {
 
     // 2. Aggregate
     try {
-      realtimeAggregatorService.onTick(symbol, price, 0, ts);
+
+      realtimeAggregatorService.onTick(symbol, price, volume_trade_for_day || 0, ts);
     } catch (err) {
       logger.error(`[AngelWS-V2] Aggregation error: ${err.message}`);
     }
@@ -361,10 +359,10 @@ class AngelWebSocketServiceV2 {
 
         if (prices.length === 0) return;
 
-        // Batch update using unnest for performance
+        // 1. Batch update market_snapshot using unnest for performance
         // We conditionally update prev_close if the new timestamp is from a different day
         // This handles the "rollover" when market opens on a new day (e.g., Monday morning)
-        const query = `
+        const marketSnapshotQuery = `
           UPDATE market_snapshot as m
           SET 
             prev_close = CASE 
@@ -384,14 +382,36 @@ class AngelWebSocketServiceV2 {
           WHERE m.symbol = v.symbol
         `;
 
-        const values = [];
+        const marketSnapshotValues = [];
         prices.forEach(p => {
-          values.push(p.symbol, p.price, p.ts);
+          marketSnapshotValues.push(p.symbol, p.price, p.ts);
         });
 
-        await timescaleClient.query(query, values);
+        await timescaleClient.query(marketSnapshotQuery, marketSnapshotValues);
 
         logger.info(`[AngelWS-V2] Synced ${prices.length} stocks to market_snapshot`);
+
+        // 2. Batch update InternalTokenList with LTP and Volume
+        try {
+          const { internalTokenListQueries } = require('../../queries/index.js');
+
+          // Prepare data for InternalTokenList update
+          const stockUpdates = prices.map(p => ({
+            symbol: p.symbol,
+            ltp: p.price,
+            volume: p.volume || 0
+          }));
+
+          const internalTokenQuery = internalTokenListQueries.batchUpdateLtpAndVolume(stockUpdates);
+
+          if (internalTokenQuery) {
+            await timescaleClient.query(internalTokenQuery.text, internalTokenQuery.values);
+            logger.info(`[AngelWS-V2] Synced ${stockUpdates.length} stocks to InternalTokenList`);
+          }
+        } catch (internalErr) {
+          // Log error but don't fail the entire sync
+          logger.error(`[AngelWS-V2] InternalTokenList sync error: ${internalErr.message}`);
+        }
 
       } catch (err) {
         logger.error(`[AngelWS-V2] Snapshot sync error: ${err.message}`);

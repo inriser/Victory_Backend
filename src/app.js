@@ -1,10 +1,10 @@
 const cors = require('cors');
 const express = require('express');
-const {  errorHandler1} = require('./middleware/error.middleware.js');
+const { errorHandler1 } = require('./middleware/error.middleware.js');
 const { notFound } = require('./middleware/notFound.middleware.js');
 const routes = require('./routes/index.js');
 
- function createApp() {
+function createApp() {
   const app = express();
 
   const corsOptions = {
@@ -32,4 +32,4 @@ const routes = require('./routes/index.js');
   return app;
 }
 
-module.exports = {createApp}
+module.exports = { createApp }

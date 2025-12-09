@@ -71,7 +71,7 @@ class RealtimeAggregatorService {
       };
 
       // 1. Save to Redis (latest 1-min candle)
-      const redisKey = `OHLC:1MIN:${symbol}`;
+      const redisKey = `TickerTick:1MIN:${symbol}`;
       await redisClient.set(redisKey, JSON.stringify(candleData));
 
       // 2. Insert into 1Min_OHLC DB table

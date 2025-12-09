@@ -15,7 +15,7 @@ const CACHE_TTL = 86400; // 24 hours TTL for stock details
  * @param {number} change - Price change
  * @param {string} name - Stock name (optional)
  */
- async function updateMoverInRedis(symbol, percentChange, price, change, name = null) {
+async function updateMoverInRedis(symbol, percentChange, price, change, name = null) {
   try {
     if (!redisClient.isOpen) {
       logger.warn('[Movers] Redis not connected, skipping update');
@@ -45,7 +45,7 @@ const CACHE_TTL = 86400; // 24 hours TTL for stock details
       percentChange: percentChange.toString(),
       updatedAt: new Date().toISOString()
     });
-    
+
     // Set TTL on stock details
     await redisClient.expire(stockKey, CACHE_TTL);
 
@@ -70,7 +70,7 @@ async function getMoversFromRedis(limit = 5) {
     // Get top gainers (highest scores) - get from end of sorted set
     const gainerSymbols = await redisClient.sendCommand(['ZREVRANGE', REDIS_GAINERS_KEY, '0', String(limit - 1)]);
     logger.info(`[Movers] Found ${gainerSymbols.length} gainer symbols:`, gainerSymbols);
-    
+
     // Get top losers (lowest scores, which are most negative) - get from start
     // We store absolute value for losers, so higher score = bigger loss
     // So we need ZREVRANGE to get the biggest losers first
@@ -113,7 +113,7 @@ async function getMoversFromRedis(limit = 5) {
       gainers: gainers.filter(g => g !== null),
       losers: losers.filter(l => l !== null)
     };
-    
+
     logger.info(`[Movers] Returning ${result.gainers.length} gainers and ${result.losers.length} losers`);
     return result;
 
@@ -127,9 +127,9 @@ async function getMoversFromRedis(limit = 5) {
  */
 
 
- async function populateRedisFromDB() {
+async function populateRedisFromDB() {
   logger.info('[Movers] Populating Redis from market_snapshot...');
-  
+
   const query = `
     SELECT 
       symbol,
@@ -143,7 +143,7 @@ async function getMoversFromRedis(limit = 5) {
 
   try {
     const result = await timescaleClient.query(query);
-    
+
     for (const row of result.rows) {
       await updateMoverInRedis(
         row.symbol,
@@ -157,7 +157,7 @@ async function getMoversFromRedis(limit = 5) {
       const prevCloseKey = `PRICE:PREV_CLOSE:${row.symbol}`;
       await redisClient.set(prevCloseKey, row.prev_close.toString());
     }
-    
+
     logger.info(`[Movers] Populated Redis with ${result.rows.length} stocks`);
   } catch (error) {
     logger.error(`[Movers] Error populating Redis: ${error.message}`);
@@ -171,11 +171,11 @@ async function getMoversFromRedis(limit = 5) {
  * @returns {Object} { gainers, losers }
  */
 
- async function getMarketMovers(limit = 5) {
+async function getMarketMovers(limit = 5) {
   try {
     // Try Redis first
     const redisData = await getMoversFromRedis(limit);
-    
+
     if (redisData && redisData.gainers.length > 0 && redisData.losers.length > 0) {
       logger.info(`[Movers] Returning ${redisData.gainers.length} gainers and ${redisData.losers.length} losers from Redis`);
       return redisData;
@@ -199,4 +199,4 @@ async function getMoversFromRedis(limit = 5) {
   }
 }
 
-module.exports = {getMarketMovers,populateRedisFromDB,getMoversFromRedis,updateMoverInRedis };
+module.exports = { getMarketMovers, populateRedisFromDB, getMoversFromRedis, updateMoverInRedis };

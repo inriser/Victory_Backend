@@ -1,53 +1,34 @@
 const { asyncHandler } = require('../utils/asyncHandler.js');
-const { tsClient } = require('../db/timescaleClient.js');
-const fs = require('fs');
-const path = require('path');
-
-const scriptsPath = path.join(__dirname, '../script/symbolNames.json');
+const TradingModel = require('../models/trading.model.js');
 
 const getAvailableSymbols = asyncHandler(async (req, res) => {
- 
   const { sort } = req.query; // 'price_desc', 'price_asc', 'alphabetical'
 
-  let query = `
-    SELECT symbol, latest_price
-    FROM market_snapshot
-  `;
+  // Fetch from the new authoritative source (InternalTokenList)
+  // This already returns { token, symbol, name, exch_seg, instrumenttype, ltp, volume }
+  let stocks = await TradingModel.getWatchlist();
 
-  if (sort === 'price_desc') {
-    query += ` ORDER BY latest_price DESC`;
-  } else if (sort === 'price_asc') {
-    query += ` ORDER BY latest_price ASC`;
-  } else {
-    query += ` ORDER BY symbol ASC`;
-  }
-
-  let result;
-  try {
-    result = await tsClient.query(query);
-  } catch (err) {
-    console.warn('Error querying market_snapshot, falling back to candles_ohlc:', err.message);
-    result = await tsClient.query(
-      `SELECT DISTINCT symbol FROM candles_ohlc ORDER BY symbol ASC`
-    );
-  }
-
-  const symbols = result.rows.map(row => row.symbol);
-
-  let stockNames = {};
-  try {
-    const data = fs.readFileSync(scriptsPath, 'utf8');
-    stockNames = JSON.parse(data);
-  } catch (err) {
-    console.warn('Could not load stock names:', err.message);
-  }
-
-  // Combine symbols with names and price
-  const symbolsWithNames = result.rows.map(row => ({
-    symbol: row.symbol,
-    name: stockNames[row.symbol] || row.symbol,
-    price: row.latest_price || null
+  // Map to the format expected by the frontend
+  const symbolsWithNames = stocks.map(stock => ({
+    symbol: stock.symbol,
+    name: stock.name || stock.symbol,
+    // Use ltp from database if available, otherwise it might be 0 until a tick arrives
+    price: stock.ltp ? parseFloat(stock.ltp) : 0,
+    exchange: 'NSE'
   }));
+
+  // Sort the data in memory
+  if (sort === 'price_desc') {
+    symbolsWithNames.sort((a, b) => (b.price || 0) - (a.price || 0));
+  } else if (sort === 'price_asc') {
+    symbolsWithNames.sort((a, b) => (a.price || 0) - (b.price || 0));
+  } else {
+    // Default: Alphabetical by symbol
+    symbolsWithNames.sort((a, b) => a.symbol.localeCompare(b.symbol));
+  }
+
+  // Extract simple list of symbols
+  const symbols = symbolsWithNames.map(s => s.symbol);
 
   res.json({
     symbols,
@@ -56,7 +37,6 @@ const getAvailableSymbols = asyncHandler(async (req, res) => {
   });
 });
 
-// Export for CommonJS
 module.exports = {
   getAvailableSymbols
 };

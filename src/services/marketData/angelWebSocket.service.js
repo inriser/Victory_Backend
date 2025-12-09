@@ -3,7 +3,10 @@ const { env } = require('../../config/env.js');
 const { logger } = require('../../config/logger.js');
 const { angelService } = require('../angel.service.js');
 const { redisClient } = require('../../db/redisClient.js');
-const { realtimeAggregatorService } = require('./realtimeAggregator.service.js');
+const realtimeAggregatorService = require('./realtimeAggregator.service.js');
+
+// Token Map (Loaded from DB)
+let tokenMap = {};
 
 class AngelWebSocketService {
   constructor() {
@@ -15,8 +18,18 @@ class AngelWebSocketService {
     this.lastTickTime = null;
   }
 
-  init(broadcastCallback) {
+  async init(broadcastCallback) {
     this.broadcastCallback = broadcastCallback;
+
+    // Load Token Map from DB
+    try {
+      const TradingModel = require('../../models/trading.model.js');
+      tokenMap = await TradingModel.getTokenMap();
+      logger.info(`[AngelWS-V1] Loaded ${Object.keys(tokenMap).length} tokens from Database.`);
+    } catch (err) {
+      logger.error(`[AngelWS-V1] Failed to load token map: ${err.message}`);
+    }
+
     this.connect();
   }
 
@@ -128,14 +141,6 @@ class AngelWebSocketService {
     // Angel WS is sending token like '"3045"' (with embedded quotes),
     // so normalize it before lookup.
     const normalizedToken = String(tick.token).replace(/"/g, '');
-
-    const tokenMap = {
-      '3045': 'SBIN',
-      '1594': 'INFY',
-      '11536': 'TCS',
-      '2885': 'RELIANCE',
-      '1333': 'HDFCBANK'
-    };
 
     const symbol = tokenMap[normalizedToken];
     if (!symbol) return;

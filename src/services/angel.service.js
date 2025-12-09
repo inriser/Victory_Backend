@@ -18,12 +18,12 @@ class AngelService {
     try {
       // Docs: https://smartapi.angelbroking.com/docs/Historical
       // Endpoint: /rest/secure/angelbroking/historical/v1/getCandleData
-      
+
       const config = {
         method: 'post',
         url: `${this.baseUrl}/rest/secure/angelbroking/historical/v1/getCandleData`,
-        headers: { 
-          'Content-Type': 'application/json', 
+        headers: {
+          'Content-Type': 'application/json',
           'Accept': 'application/json',
           'X-UserType': 'USER',
           'X-SourceID': 'WEB',
@@ -58,20 +58,17 @@ class AngelService {
       throw error;
     }
   }
-  
+
   // Helper to map common symbols to Angel tokens
-  getSymbolToken(symbol) {
-    const map = {
-      'SBIN': '3045',
-      'INFY': '1594',
-      'TCS': '11536',
-      'RELIANCE': '2885',
-      'HDFCBANK': '1333'
-    };
-    return map[symbol] || '3045'; // Default to SBIN
+  // Refactored to use DB lookup
+  async getSymbolToken(symbol) {
+    // Import here to avoid circular dependency issues if any, or move to top if safe
+    const TradingModel = require('../models/trading.model.js');
+    const token = await TradingModel.getTokenBySymbol(symbol);
+    return token || '3045'; // Default to SBIN if not found (or throw error)
   }
 }
 
- const angelService = new AngelService();
+const angelService = new AngelService();
 
- module.exports = {angelService};
+module.exports = { angelService };

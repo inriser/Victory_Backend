@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const errorHandler = require("./middleware/errorHandler.middleware");
-const {startServer} = require("./server.js");
+const { startServer } = require("./server.js");
 const session = require("express-session");
 const FileStore = require("session-file-store")(session);
 const path = require("path")
@@ -111,6 +111,8 @@ const tagindustryRoutes = require("./routes/tagindustryRoutes.route.js");
 const moversRoutes = require("./routes/movers.routes.js");
 const symbolsRoutes = require("./routes/symbols.routes.js");
 const intervalsRoutes = require("./routes/intervals.routes.js");
+const indicesRoutes = require("./routes/indices.routes.js");
+const tradingRoutes = require("./routes/trading.routes.js");
 
 app.get("/", (req, res) => {
     res.json("Hello from Victory Backend");
@@ -198,6 +200,8 @@ app.use("/api/learningprogress", LearningProgressRoutes);
 app.use("/api/movers", moversRoutes);
 app.use("/api/symbols", symbolsRoutes);
 app.use("/api/intervals", intervalsRoutes);
+app.use("/api/indices", indicesRoutes);
+app.use("/api/trading", tradingRoutes);
 
 app.use(errorHandler);
 
@@ -208,9 +212,9 @@ app.use(errorHandler);
 // require('./services/insidetradingCron');
 
 startServer().catch((err) => {
-  // eslint-disable-next-line no-console
-  console.error('Failed to start v2 server', err);
-  process.exit(1);
+    // eslint-disable-next-line no-console
+    console.error('Failed to start v2 server', err);
+    process.exit(1);
 });
 
 const { startSmartApiStream } = require("./services/smartapiStream");
