@@ -33,6 +33,12 @@ const getPortfolio = async (req, res) => {
             req.user?.id ||
             null;
 
+        if (!userId) {
+            return res.json({
+                status: false,
+                message: "User ID missing in headers",
+            });
+        }
 
         // -----------------------------
         // 2) Call AngelOne API
@@ -41,24 +47,23 @@ const getPortfolio = async (req, res) => {
             "https://apiconnect.angelone.in/rest/secure/angelbroking/portfolio/v1/getAllHolding",
             {
                 headers: {
-                    "Authorization": "Bearer " + authToken,
+                    Authorization: "Bearer " + authToken,
                     "Content-Type": "application/json",
-                    "Accept": "application/json",
+                    Accept: "application/json",
                     "X-UserType": "USER",
                     "X-SourceID": "WEB",
                     "X-ClientLocalIP": "192.168.1.101",
                     "X-ClientPublicIP": "103.55.41.12",
                     "X-MACAddress": "10-02-B5-43-0E-B8",
-                    "X-PrivateKey": process.env.API_KEY
-                }
+                    "X-PrivateKey": process.env.API_KEY,
+                },
             }
         );
 
         const holdings = response.data.data?.holdings || [];
 
-
         // -----------------------------
-        // 3) UPSERT Query (avoid duplicates by ISIN)
+        // 3) UPSERT Query — (user_id + isin)
         // -----------------------------
         const insertQuery = `
             INSERT INTO portfolio_status (
@@ -75,7 +80,7 @@ const getPortfolio = async (req, res) => {
                 $13,$14,$15,$16,$17,$18,
                 $19,$20, NOW(), NOW()
             )
-            ON CONFLICT (isin)
+            ON CONFLICT (user_id, isin)
             DO UPDATE SET
                 tradingsymbol = EXCLUDED.tradingsymbol,
                 exchange = EXCLUDED.exchange,
@@ -115,13 +120,13 @@ const getPortfolio = async (req, res) => {
                 h.product,
                 h.collateralquantity,
                 h.collateraltype,
-                Number(h.haircut),
-                Number(h.averageprice),
-                Number(h.ltp),
+                Number(h.haircut || 0),
+                Number(h.averageprice || 0),
+                Number(h.ltp || 0),
                 h.symboltoken,
-                Number(h.close),
-                Number(h.profitandloss),
-                Number(h.pnlpercentage)
+                Number(h.close || 0),
+                Number(h.profitandloss || 0),
+                Number(h.pnlpercentage || 0),
             ];
 
             await pool.query(insertQuery, values);
@@ -130,23 +135,28 @@ const getPortfolio = async (req, res) => {
         // -----------------------------
         // 5) Fetch Latest Portfolio
         // -----------------------------
-        const result = await pool.query(`
-            SELECT *
-            FROM portfolio_status
-            ORDER BY updated_at DESC;
-        `);
+        const result = await pool.query(
+            `
+    SELECT *
+    FROM portfolio_status
+    WHERE user_id = $1
+      AND DATE(updated_at) = CURRENT_DATE
+    ORDER BY updated_at DESC;
+    `,
+            [userId]
+        );
+
 
         return res.json({
             status: true,
-            data: result.rows
+            data: result.rows,
         });
-
     } catch (error) {
         console.error("Portfolio Error:", error);
 
         return res.status(500).json({
             status: false,
-            message: error.message
+            message: error.message,
         });
     }
 };
