@@ -1,0 +1,114 @@
+[
+  {
+    "token": "99926030",
+    "symbol": "NIFTY METAL",
+    "name": "NIFTY METAL",
+    "exch_seg": "NSE",
+    "instrumenttype": "AMXIDX"
+  },
+  {
+    "token": "99926037",
+    "symbol": "FINNIFTY",
+    "name": "FINNIFTY",
+    "exch_seg": "NSE",
+    "instrumenttype": "AMXIDX"
+  },
+  {
+    "token": "99919000",
+    "symbol": "Sensex",
+    "name": "SENSEX",
+    "exch_seg": "BSE",
+    "instrumenttype": "AMXIDX"
+  },
+  {
+    "token": "99926009",
+    "symbol": "Bankex",
+    "name": "BANKNIFTY",
+    "exch_seg": "NSE",
+    "instrumenttype": "AMXIDX"
+  },
+  {
+    "token": "99926008",
+    "symbol": "NIFTY IT",
+    "name": "NIFTY IT",
+    "exch_seg": "NSE",
+    "instrumenttype": "AMXIDX"
+  },
+  {
+    "token": "99926029",
+    "symbol": "NIFTY AUTO",
+    "name": "NIFTY AUTO",
+    "exch_seg": "NSE",
+    "instrumenttype": "AMXIDX"
+  },
+  {
+    "token": "99926000",
+    "symbol": "NIFTY",
+    "name": "NIFTY",
+    "exch_seg": "NSE",
+    "instrumenttype": "AMXIDX"
+  },
+  {
+    "token": "99926047",
+    "symbol": "NIFTY PRIVATE BANK",
+    "name": "NIFTY PVT BANK",
+    "exch_seg": "NSE",
+    "instrumenttype": "AMXIDX"
+  },
+  {
+    "token": "99926009",
+    "symbol": "BANKNIFTY",
+    "name": "BANKNIFTY",
+    "exch_seg": "NSE",
+    "instrumenttype": "AMXIDX"
+  },
+  {
+    "token": "99926031",
+    "symbol": "NIFTY MEDIA",
+    "name": "NIFTY MEDIA",
+    "exch_seg": "NSE",
+    "instrumenttype": "AMXIDX"
+  },
+  {
+    "token": "99926023",
+    "symbol": "NIFTY PHARMA",
+    "name": "NIFTY PHARMA",
+    "exch_seg": "NSE",
+    "instrumenttype": "AMXIDX"
+  },
+  {
+    "token": "99926025",
+    "symbol": "NIFTY PSU BANK",
+    "name": "NIFTY PSU BANK",
+    "exch_seg": "NSE",
+    "instrumenttype": "AMXIDX"
+  },
+  {
+    "token": "99926021",
+    "symbol": "NIFTY FMCG",
+    "name": "NIFTY FMCG",
+    "exch_seg": "NSE",
+    "instrumenttype": "AMXIDX"
+  },
+  {
+    "token": "99926011",
+    "symbol": "NIFTY MIDCAP 100",
+    "name": "NIFTY MIDCAP 100",
+    "exch_seg": "NSE",
+    "instrumenttype": "AMXIDX"
+  },
+  {
+    "token": "99926032",
+    "symbol": "NIFTY SMLCAP 100",
+    "name": "NIFTY SMLCAP 100",
+    "exch_seg": "NSE",
+    "instrumenttype": "AMXIDX"
+  },
+  {
+    "token": "99926018",
+    "symbol": "NIFTY REALTY",
+    "name": "NIFTY REALTY",
+    "exch_seg": "NSE",
+    "instrumenttype": "AMXIDX"
+  }
+]

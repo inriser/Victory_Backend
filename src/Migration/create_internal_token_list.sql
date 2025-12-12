@@ -1,7 +1,7 @@
 -- Create InternalTokenList table for selected stocks
 -- This table will be the source of truth for stocks used in the application
 
-CREATE TABLE IF NOT EXISTS InternalTokenList (
+CREATE TABLE IF NOT EXISTS "internaltokenlist" (
   token VARCHAR(50) PRIMARY KEY,
   symbol VARCHAR(100) NOT NULL,
   name VARCHAR(200) NOT NULL,
@@ -16,9 +16,9 @@ CREATE TABLE IF NOT EXISTS InternalTokenList (
 );
 
 -- Create index on symbol for faster lookups
-CREATE INDEX IF NOT EXISTS idx_internal_symbol ON InternalTokenList(symbol);
+CREATE INDEX IF NOT EXISTS idx_internal_symbol ON Internaltokenlist(symbol);
 
 -- Create index on websocket_enabled for filtering active stocks
-CREATE INDEX IF NOT EXISTS idx_internal_websocket ON InternalTokenList(websocket_enabled);
+CREATE INDEX IF NOT EXISTS idx_internal_websocket ON Internaltokenlist(websocket_enabled);
 
-COMMENT ON TABLE InternalTokenList IS 'Stores selected stocks for the application';
+COMMENT ON TABLE Internaltokenlist IS 'Stores selected stocks for the application';

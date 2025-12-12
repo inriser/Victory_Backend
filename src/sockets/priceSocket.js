@@ -2,7 +2,8 @@ const { WebSocketServer } = require('ws');
 
 let wss = null;
 
- function attachPriceSocket(server) {
+function attachPriceSocket(server) {
+  console.log('[PriceSocket] Initializing WebSocketServer on path: /ws/prices');
   wss = new WebSocketServer({ server, path: '/ws/prices' });
 
   wss.on('connection', (ws) => {
@@ -23,7 +24,7 @@ let wss = null;
   return wss;
 }
 
- function broadcastPrice(data) {
+function broadcastPrice(data) {
   if (!wss) return;
 
   const payload = JSON.stringify({
@@ -38,4 +39,4 @@ let wss = null;
   });
 }
 
-module.exports = {attachPriceSocket, broadcastPrice}
+module.exports = { attachPriceSocket, broadcastPrice }

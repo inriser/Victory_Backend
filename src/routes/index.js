@@ -8,6 +8,7 @@ const statusRoutes = require('./status.routes.js');
 const symbolsRoutes = require('./symbols.routes.js');
 const moversRoutes = require('./movers.routes.js');
 const tradingRoutes = require('./trading.routes.js');
+const indicesRoutes = require('./indices.routes.js');
 
 const router = express.Router();
 
@@ -19,6 +20,7 @@ router.use('/api/symbols', symbolsRoutes);
 router.use('/api', intervalsRoutes);
 router.use('/api/movers', moversRoutes);
 router.use('/api/trading', tradingRoutes);
+router.use('/api/indices', indicesRoutes);
 router.use('/', healthRoutes);
 
 module.exports = router;

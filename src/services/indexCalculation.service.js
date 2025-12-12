@@ -6,35 +6,8 @@
 
 const { timescaleClient: tsClient } = require('../db/timescaleClient');
 const { logger } = require('../config/logger');
-
-// Index constituents configuration
-const INDEX_CONSTITUENTS = {
-    NIFTY: {
-        name: 'NIFTY 50',
-        baseValue: 1000, // Base index value
-        constituents: [
-            'SHRIRAMFIN', 'BAJFINANCE', 'BAJAJFINSV', 'HINDALCO', 'HCLTECH',
-            'INFY', 'SBILIFE', 'SBIN', 'MARUTI', 'TECHM', 'TCS', 'WIPRO',
-            'M&M', 'EICHERMOT', 'HDFCLIFE', 'LT', 'HDFCBANK', 'ADANIENT',
-            'JSWSTEEL', 'KOTAKBANK', 'GRASIM', 'TATACONSUM', 'TITAN', 'POWERGRID',
-            'BEL', 'MAXHEALTH', 'ICICIBANK', 'BAJAJ-AUTO', 'DRREDDY', 'ITC',
-            'ONGC', 'CIPLA', 'COALINDIA', 'ETERNAL', 'TATASTEEL', 'NTPC',
-            'ULTRACEMCO', 'APOLLOHOSP', 'JIOFIN', 'RELIANCE', 'ASIANPAINT',
-            'NESTLEIND', 'AXISBANK', 'BHARTIARTL', 'ADANIPORTS', 'TRENT',
-            'TMPV', 'SUNPHARMA', 'INDUSINDBK', 'HINDUNILVR'
-        ]
-    },
-    BANKNIFTY: {
-        name: 'BANK NIFTY',
-        baseValue: 1000,
-        constituents: [
-            'HDFCBANK', 'ICICIBANK', 'KOTAKBANK', 'SBIN', 'AXISBANK',
-            'INDUSINDBK', 'BAJFINANCE', 'BAJAJFINSV', 'SBILIFE', 'HDFCLIFE',
-            'BANDHANBNK', 'FEDERALBNK'
-        ]
-    }
-    // Add more indices as needed (Sensex, NIFTY IT, etc.)
-};
+const IndicesModel = require('../models/indices.model');
+const { redisClient } = require('../db/redisClient');
 
 class IndexCalculationService {
     /**
@@ -45,70 +18,86 @@ class IndexCalculationService {
      */
     async calculateIndexValue(indexName) {
         try {
-            const indexConfig = INDEX_CONSTITUENTS[indexName];
-            if (!indexConfig) {
-                throw new Error(`Index ${indexName} not configured`);
+            // 1. Try fetching directly from Redis (Real-time Source of Truth)
+            // The WebSocket service stores data as JSON in keys like "PRICE:LATEST:SYMBOL"
+            // We map common index names to potential Redis keys.
+            const keysToTry = [
+                `PRICE:LATEST:${indexName}`,
+                `PRICE:LATEST:${indexName.replace(' ', '')}`,      // e.g. "PRICE:LATEST:NIFTY50"
+                `PRICE:LATEST:${indexName} 50`,                    // e.g. "PRICE:LATEST:NIFTY 50"
+                `PRICE:LATEST:${indexName.replace('NIFTY', 'NIFTY 50')}`, // e.g. NIFTY -> NIFTY 50
+                `ltp:${indexName}` // Fallback for legacy keys if any
+            ];
+
+            let ltp = null;
+            let usedKey = null;
+
+            for (const key of keysToTry) {
+                const val = await redisClient.get(key);
+                if (val) {
+                    try {
+                        const parsed = JSON.parse(val);
+                        // Check if it's a valid object with 'price'
+                        if (parsed && typeof parsed === 'object' && parsed.price !== undefined) {
+                            ltp = parseFloat(parsed.price);
+                            usedKey = key;
+                            break;
+                        }
+                    } catch (e) {
+                        // ignore parse error, maybe it was a raw string?
+                        const raw = parseFloat(val);
+                        if (!isNaN(raw)) {
+                            ltp = raw;
+                            usedKey = key;
+                            break;
+                        }
+                    }
+                }
             }
 
-            const { constituents, baseValue } = indexConfig;
+            if (ltp !== null) {
+                // Fetch Previous Close for Change Calculation
+                let change = 0;
+                let changePercent = 0;
 
-            // Get current prices from market_snapshot (using correct column names)
-            const query = `
-                SELECT 
-                    symbol,
-                    latest_price as current_price,
-                    prev_close as prev_close_price
-                FROM market_snapshot
-                WHERE symbol = ANY($1::text[])
-                AND latest_price IS NOT NULL
-                AND latest_price > 0
-            `;
+                // If we found a PRICE:LATEST key, look for PRICE:PREV_CLOSE
+                if (usedKey.startsWith('PRICE:LATEST:')) {
+                    const baseSymbol = usedKey.replace('PRICE:LATEST:', '');
+                    const closeKey = `PRICE:PREV_CLOSE:${baseSymbol}`;
 
-            const result = await tsClient.query(query, [constituents]);
-            const stockPrices = result.rows;
+                    let prevClose = ltp;
+                    const prevCloseVal = await redisClient.get(closeKey);
+                    if (prevCloseVal) prevClose = parseFloat(prevCloseVal);
 
-            if (stockPrices.length === 0) {
-                logger.warn(`[IndexCalc] No price data found for ${indexName}`);
-                return {
+                    change = ltp - prevClose;
+                    changePercent = prevClose > 0 ? (change / prevClose) * 100 : 0;
+                } else {
+                    // Legacy path
+                    const baseKeyName = usedKey.replace('ltp:', '');
+                    const closeKey = `close:${baseKeyName}`;
+                    const prevCloseStr = await redisClient.get(closeKey);
+                    const prevClose = prevCloseStr ? parseFloat(prevCloseStr) : ltp;
+                    change = ltp - prevClose;
+                    changePercent = prevClose > 0 ? (change / prevClose) * 100 : 0;
+                }
+
+                const result = {
                     symbol: indexName,
-                    name: indexConfig.name,
-                    value: 0,
-                    change: 0,
-                    changePercent: 0,
+                    name: indexName,
+                    value: parseFloat(ltp.toFixed(2)),
+                    change: parseFloat(change.toFixed(2)),
+                    changePercent: parseFloat(changePercent.toFixed(2)),
+                    isRealtime: true,
                     timestamp: new Date()
                 };
+
+                // console.log(`[IndexInfo] ${indexName} Found in Redis! Value: ₹${ltp}`);
+                return result;
             }
 
-            // Calculate equal-weighted average
-            const totalCurrentPrice = stockPrices.reduce((sum, stock) => sum + parseFloat(stock.current_price), 0);
-            const totalPrevClose = stockPrices.reduce((sum, stock) => sum + parseFloat(stock.prev_close_price || stock.current_price), 0);
-
-            const avgCurrentPrice = totalCurrentPrice / stockPrices.length;
-            const avgPrevClose = totalPrevClose / stockPrices.length;
-
-            // Improved scaling factor to match actual NIFTY values
-            // NIFTY 50 actual value: ~21,000-26,000
-            // Average stock price: ~1,500-2,500
-            // BANK NIFTY actual value: ~54,000-56,000, avg bank stock price: ~2,000-2,500
-            // Scaling factor: ~12.9 for NIFTY, ~24 for BANKNIFTY
-            const scalingFactor = indexName === 'NIFTY' ? 12.9 : 24;
-
-            const indexValue = avgCurrentPrice * scalingFactor;
-            const prevIndexValue = avgPrevClose * scalingFactor;
-
-            const change = indexValue - prevIndexValue;
-            const changePercent = prevIndexValue > 0 ? (change / prevIndexValue) * 100 : 0;
-
-            return {
-                symbol: indexName,
-                name: indexConfig.name,
-                value: parseFloat(indexValue.toFixed(2)),
-                change: parseFloat(change.toFixed(2)),
-                changePercent: parseFloat(changePercent.toFixed(2)),
-                constituentsCount: stockPrices.length,
-                totalConstituents: constituents.length,
-                timestamp: new Date()
-            };
+            // If we are here, Redis lookup failed.
+            console.log(`[IndexCalc] No Redis data for ${indexName}. Calculation skipped to avoid wrong values.`);
+            return null; // SKIP all synthetic calculation. Real indices cannot be calculated by simple average.
 
         } catch (error) {
             logger.error(`[IndexCalc] Error calculating ${indexName}:`, error);
@@ -117,20 +106,54 @@ class IndexCalculationService {
     }
 
     /**
-     * Calculate all configured indices
+     * Calculate all configured indices from DB
      * @returns {Array} Array of index values
      */
     async calculateAllIndices() {
         try {
-            const indices = Object.keys(INDEX_CONSTITUENTS);
+            // 1. Get all active groups (Indices & Sectors)
+            const groupsFn = await IndicesModel.getAllGroups();
+
+            // Flatten: we want to calc value for ALL of them
+            // groupsFn returns { indices: [], sectors: [], themes: [] }
+            const allGroups = [
+                ...groupsFn.indices,
+                ...groupsFn.sectors,
+                ...groupsFn.themes
+            ];
+
+            // 2. Parallel calculation
             const results = await Promise.all(
-                indices.map(indexName => this.calculateIndexValue(indexName))
+                allGroups.map(async (group) => {
+                    try {
+                        const data = await this.calculateIndexValue(group.name);
+                        if (!data) return null;
+                        // Merge calculated data with type info
+                        return {
+                            ...data,
+                            type: this.getType(groupsFn, group.name),
+                            exchange: group.exchange
+                        };
+                    } catch (err) {
+                        logger.error(`[IndexCalc] Failed to calc index ${group.name}: ${err.message}`);
+                        return null;
+                    }
+                })
             );
-            return results;
+
+            // Filter out nulls
+            return results.filter(r => r !== null);
+
         } catch (error) {
             logger.error('[IndexCalc] Error calculating all indices:', error);
             throw error;
         }
+    }
+
+    getType(groupsObj, name) {
+        if (groupsObj.indices.some(i => i.name === name)) return 'index';
+        if (groupsObj.sectors.some(s => s.name === name)) return 'Sector';
+        return 'Theme';
     }
 
     /**
@@ -148,8 +171,9 @@ class IndexCalculationService {
             // For now, return mock historical data
             // TODO: Implement actual historical calculation from DayEnd_OHLC
             const history = [];
+            const baseValue = current ? current.value : 10000;
+
             for (let i = limit; i > 0; i--) {
-                const baseValue = current.value;
                 const randomChange = (Math.random() - 0.5) * (baseValue * 0.02); // ±2% variation
                 history.push({
                     date: new Date(Date.now() - i * 24 * 60 * 60 * 1000),

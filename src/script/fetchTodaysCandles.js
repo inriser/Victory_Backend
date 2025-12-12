@@ -1,5 +1,5 @@
 /**
- * Fetch Historical Candle Data for Nifty 50 Stocks
+ * Fetch Historical Candle Data for ALL Stocks
  * Fetches 1min, 5min, and 1day candle data from Angel One API
  * Uses stocks from internaltokenlist table
  */
@@ -18,15 +18,14 @@ class HistoricalDataFetcher {
     }
 
     /**
-     * Get all Nifty 50 stocks from database
+     * Get all stocks from database
      */
-    async getNifty50Stocks() {
+    async getAllStocks() {
         try {
             const query = `
-                SELECT token, symbol 
+                SELECT token, symbol, exch_seg
                 FROM internaltokenlist 
                 WHERE tradeable = TRUE
-                LIMIT 50
             `;
             const result = await tsClient.query(query);
             logger.info(`[HistoricalFetch] Found ${result.rows.length} stocks in database`);
@@ -40,10 +39,10 @@ class HistoricalDataFetcher {
     /**
      * Fetch candle data from Angel One API using HTTP
      */
-    async fetchCandleData(symbolToken, interval, fromDate, toDate) {
+    async fetchCandleData(symbolToken, exchange, interval, fromDate, toDate) {
         try {
             const payload = {
-                exchange: 'NSE',
+                exchange: exchange || 'NSE',
                 symboltoken: symbolToken,
                 interval: interval,
                 fromdate: fromDate,
@@ -76,7 +75,7 @@ class HistoricalDataFetcher {
             return [];
         } catch (error) {
             if (error.response) {
-                logger.error(`[HistoricalFetch] API Error: ${error.response.status} - ${JSON.stringify(error.response.data)}`);
+                logger.error(`[HistoricalFetch] API Error for ${symbolToken}: ${error.response.status} - ${JSON.stringify(error.response.data)}`);
             } else {
                 logger.error(`[HistoricalFetch] Error fetching candle data:`, error.message);
             }
@@ -218,7 +217,7 @@ class HistoricalDataFetcher {
             logger.info('[HistoricalFetch] Starting to fetch today\'s data...');
 
             // Get stocks from database
-            const stocks = await this.getNifty50Stocks();
+            const stocks = await this.getAllStocks();
             if (stocks.length === 0) {
                 logger.error('[HistoricalFetch] No stocks found in database!');
                 return;
@@ -247,11 +246,12 @@ class HistoricalDataFetcher {
 
             for (const stock of stocks) {
                 try {
-                    logger.info(`[HistoricalFetch] Processing ${stock.symbol}...`);
+                    // logger.info(`[HistoricalFetch] Processing ${stock.symbol} (${stock.exch_seg})...`);
 
-                    // Fetch 1-minute candles
+                    // 1. Fetch 1-minute candles
                     const oneMinCandles = await this.fetchCandleData(
                         stock.token,
+                        stock.exch_seg, // USE DB EXCHANGE
                         'ONE_MINUTE',
                         fromDateStr,
                         toDateStr
@@ -259,11 +259,15 @@ class HistoricalDataFetcher {
                     const oneMinSaved = await this.save1MinCandles(stock.symbol, oneMinCandles);
                     totalStats.oneMin += oneMinSaved;
 
-                    await this.sleep(500);
+                    // Small delay to respect rate limits
+                    await this.sleep(200);
 
-                    // Fetch 5-minute candles
+                    // 2. Fetch Daily Candle (Skip 5min for speed if needed, but lets keep it)
+                    // If 1min failed, maybe 5min works?
+
                     const fiveMinCandles = await this.fetchCandleData(
                         stock.token,
+                        stock.exch_seg,
                         'FIVE_MINUTE',
                         fromDateStr,
                         toDateStr
@@ -271,11 +275,11 @@ class HistoricalDataFetcher {
                     const fiveMinSaved = await this.save5MinCandles(stock.symbol, fiveMinCandles);
                     totalStats.fiveMin += fiveMinSaved;
 
-                    await this.sleep(500);
+                    await this.sleep(200);
 
-                    // Fetch daily candle
                     const dailyCandles = await this.fetchCandleData(
                         stock.token,
+                        stock.exch_seg,
                         'ONE_DAY',
                         fromDateStr,
                         toDateStr
@@ -285,9 +289,12 @@ class HistoricalDataFetcher {
 
                     totalStats.processed++;
 
-                    logger.info(`[HistoricalFetch] ✓ ${stock.symbol}: 1min=${oneMinSaved}, 5min=${fiveMinSaved}, daily=${dailySaved}`);
+                    // Log progress every 10 stocks or if data was saved
+                    if (oneMinSaved > 0 || dailySaved > 0 || totalStats.processed % 20 === 0) {
+                        logger.info(`[HistoricalFetch] ${totalStats.processed}/${stocks.length} - ${stock.symbol}: 1m=${oneMinSaved}, 1d=${dailySaved}`);
+                    }
 
-                    await this.sleep(1000);
+                    await this.sleep(300); // 3 requests per stock, approx .7s per stock. 500 stocks = 350s (6 mins). Acceptable.
 
                 } catch (error) {
                     logger.error(`[HistoricalFetch] Error processing ${stock.symbol}:`, error.message);
