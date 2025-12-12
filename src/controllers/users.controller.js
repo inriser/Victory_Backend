@@ -2,13 +2,9 @@ const path = require("path");
 const getPool = require("../db/db.js");
 const fs = require("fs");
 const { getNextUserId } = require("../utils/maxUserID.utils.js");
-// const isSuspiciousInput = require('../utils/security.utils.js');
-// const validator = require('validator')
-// const User = require('../models/users.model.js')
 
 const getUsers = async (req, res, next) => {
   const pool = getPool();
-
   const limit = Number(req.query.limit) || 50;
   const offset = Number(req.query.offset) || 0;
   try {
@@ -102,8 +98,6 @@ const updateUsers = async (req, res, next) => {
     const agreementsFiles = req.files?.agreement || [];
     const documentsFiles = req.files?.document || [];
 
-    
-
     // If files are uploaded, treat them as NEW additions (not updates)
     const agreements = agreementsFiles.map((file, index) => ({
       // No agreementId means INSERT new agreement
@@ -134,7 +128,6 @@ const updateUsers = async (req, res, next) => {
       ...(documents.length > 0 && { documents }),
     };
 
-
     const result = await pool.query("CALL users_update($1)", [
       JSON.stringify(jsonData),
     ]);
@@ -160,7 +153,7 @@ const updateUsers = async (req, res, next) => {
 const getByIdUsers = async (req, res, next) => {
   const pool = getPool();
   try {
-    let { id } = req.params; // user id from route
+    let { id } = req.params;
     id = Number(id);
     if (isNaN(id) || !id) {
       return res
@@ -218,10 +211,74 @@ const deleteUsers = async (req, res, next) => {
   }
 };
 
+const updateUserProfile = async (req, res) => {
+  const pool = getPool();
+
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      username,
+      phone,
+      email,
+      image // frontend se aayega
+    } = req.body;
+
+    if (!id || isNaN(Number(id))) {
+      return res.status(400).json({ message: "Invalid user id" });
+    }
+
+    // 🔹 Base query (image ke bina)
+    let query = `
+      UPDATE users
+      SET
+        name = $1,
+        username = $2,
+        phone = $3,
+        email = $4,
+        updated_at = NOW()
+      WHERE userid = $5
+    `;
+
+    let values = [name, username, phone, email, id];
+   
+    // 🔥 Agar image change hui hai tabhi update karo
+    if (image && image.trim() !== "") {
+      query = `
+        UPDATE users
+        SET
+          name = $1,
+          username = $2,
+          phone = $3,
+          email = $4,
+          userimage = $5, -- ⚠️ base64 yahin store kar rahe ho
+          updated_at = NOW()
+        WHERE userid = $6
+      `;
+      values = [name, username, phone, email, image, id];
+    }
+
+    await pool.query(query, values);
+
+    return res.json({
+      status: true,
+      message: "User profile updated successfully"
+    });
+
+  } catch (error) {
+    console.error("Update user error =>", error);
+    return res.status(500).json({
+      status: false,
+      message: "Server error"
+    });
+  }
+};
+
 module.exports = {
   getUsers,
   createUsers,
   updateUsers,
   getByIdUsers,
   deleteUsers,
+  updateUserProfile
 };

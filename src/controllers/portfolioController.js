@@ -1,6 +1,50 @@
 const axios = require("axios");
 const getPool = require("../db/db.js");
 
+const getPortfolioBalance = async (req, res) => {
+    try {
+        const pool = getPool();
+        const query = `SELECT * FROM portfolio_status;`;
+
+        const result = await pool.query(query);
+        return res.json({
+            success: true,
+            message: "Portfolio fetched successfully",
+            data: result.rows
+        });
+
+    } catch (error) {
+        console.error("Error fetching Portfolio:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error",
+            error: error.message
+        });
+    }
+};
+const getAllBrokers = async (req, res) => {
+    try {
+        const pool = getPool();
+        const query = `SELECT * FROM broker_master ORDER BY id ASC;`;
+
+        const result = await pool.query(query);
+        return res.json({
+            success: true,
+            message: "Brokers fetched successfully",
+            data: result.rows
+        });
+
+    } catch (error) {
+        console.error("Error fetching brokers:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error",
+            error: error.message
+        });
+    }
+};
 const getPortfolio = async (req, res) => {
     const pool = getPool();
 
@@ -71,14 +115,14 @@ const getPortfolio = async (req, res) => {
                 tradingsymbol, exchange, isin, t1quantity, realisedquantity,
                 quantity, authorisedquantity, product, collateralquantity,
                 collateraltype, haircut, averageprice, ltp, symboltoken, close,
-                profitandloss, pnlpercentage, created_at, updated_at
+                profitandloss, pnlpercentage, created_at, updated_at, broker_id
             )
             VALUES (
                 $1,$2,$3,
                 $4,$5,$6,$7,$8,
                 $9,$10,$11,$12,
                 $13,$14,$15,$16,$17,$18,
-                $19,$20, NOW(), NOW()
+                $19,$20, NOW(), NOW(), $21
             )
             ON CONFLICT (user_id, isin)
             DO UPDATE SET
@@ -109,7 +153,6 @@ const getPortfolio = async (req, res) => {
                 userIp,
                 deviceMac,
                 userId,
-
                 h.tradingsymbol,
                 h.exchange,
                 h.isin,
@@ -127,6 +170,7 @@ const getPortfolio = async (req, res) => {
                 Number(h.close || 0),
                 Number(h.profitandloss || 0),
                 Number(h.pnlpercentage || 0),
+                1
             ];
 
             await pool.query(insertQuery, values);
@@ -161,4 +205,4 @@ const getPortfolio = async (req, res) => {
     }
 };
 
-module.exports = { getPortfolio };
+module.exports = { getPortfolio, getAllBrokers,getPortfolioBalance };

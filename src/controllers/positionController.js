@@ -63,7 +63,7 @@ const getPosition = async (req, res) => {
                 cfsellamount, buyavgprice, sellavgprice, avgnetprice, netvalue,
                 netqty, totalbuyvalue, totalsellvalue, cfbuyavgprice, cfsellavgprice,
                 totalbuyavgprice, totalsellavgprice, netprice, buyqty, sellqty,
-                buyamount, sellamount, pnl, realised, unrealised, ltp, close
+                buyamount, sellamount, pnl, realised, unrealised, ltp, close, broker
             )
             VALUES (
                 $1,$2,$3,
@@ -74,7 +74,7 @@ const getPosition = async (req, res) => {
                 $25,$26,$27,$28,$29,
                 $30,$31,$32,$33,$34,
                 $35,$36,$37,$38,$39,
-                $40,$41,$42,$43,$44,$45,$46
+                $40,$41,$42,$43,$44,$45,$46,$47
             )
             ON CONFLICT (symboltoken, producttype)
             DO UPDATE SET
@@ -116,7 +116,7 @@ const getPosition = async (req, res) => {
                 Number(p.buyamount), Number(p.sellamount),
 
                 Number(p.pnl), Number(p.realised), Number(p.unrealised),
-                Number(p.ltp), Number(p.close)
+                Number(p.ltp), Number(p.close), 1
             ];
 
             await pool.query(insertQuery, values);

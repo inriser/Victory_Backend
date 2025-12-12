@@ -60,7 +60,7 @@ const getTrade = async (req, res) => {
                 strikeprice, optiontype, expirydate,
                 marketlot, precision_value, multiplier,
                 tradevalue, transactiontype, fillprice, fillsize,
-                orderid, fillid, filltime
+                orderid, fillid, filltime, broker
             )
             VALUES (
                 $1,$2,$3,
@@ -68,7 +68,7 @@ const getTrade = async (req, res) => {
                 $9,$10,$11,
                 $12,$13,$14,
                 $15,$16,$17,$18,
-                $19,$20,$21
+                $19,$20,$21,$22
             )
             ON CONFLICT (fillid) DO NOTHING;
         `;
@@ -101,7 +101,8 @@ const getTrade = async (req, res) => {
 
                 t.orderid,
                 t.fillid,
-                t.filltime
+                t.filltime,
+                1
             ];
 
             await pool.query(insertQuery, values);
