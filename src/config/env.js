@@ -3,7 +3,6 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const env = {
-  // nodeEnv: process.env.NODE_ENV || 'development',
   port: Number(process.env.PORT) || 3002,
 
   pg: {
@@ -18,11 +17,7 @@ const env = {
     apiKey: process.env.HISTORICAL_API_KEY,
     clientCode: process.env.SMART_CLIENT_CODE,
     authToken: process.env.SMART_AUTH_TOKEN,
-    feedToken: process.env.SMART_FEED_TOKEN,
-    tokens: (process.env.SMART_TOKENS || '')
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean),
+    feedToken: process.env.SMART_FEED_TOKEN
   },
 
   redis: {

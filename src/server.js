@@ -16,13 +16,16 @@ async function startServer() {
   const app = createApp();
   const server = createServer(app);
 
+  console.log('[Server] Attaching WebSocket server...');
   attachPriceSocket(server);
+  console.log('[Server] WebSocket server attached');
 
   // Initialize Angel One WebSocket for live data (using custom implementation)
   angelWebSocketServiceV2.init(broadcastPrice);
 
   server.listen(env.port, () => {
     logger.info(`Backend v2 listening on http://localhost:${env.port}`);
+    console.log('hello world');
 
     // Populate Redis in background (non-blocking)
     logger.info('[Server] Initializing Redis cache for market movers in background...');

@@ -220,7 +220,7 @@ startServer().catch((err) => {
 const { startSmartApiStream } = require("./services/smartapiStream");
 startSmartApiStream();
 
-const HOST = "192.168.1.8";
+const HOST = "192.168.1.16";
 
 app.listen(PORT, HOST, () => {
     console.log(`Server running at http://${HOST}:${PORT}`);

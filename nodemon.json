@@ -1,0 +1,9 @@
+{
+    "ignore": [
+        "sessions/*",
+        "uploads/*",
+        "error.log",
+        "*.test.js",
+        "node_modules"
+    ]
+}

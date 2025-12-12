@@ -260,12 +260,15 @@ class AngelWebSocketServiceV2 {
     const normalizedToken = header.token.replace(/"/g, '').trim();
 
     // Lookup symbol from map
-    const symbol = tokenMap[normalizedToken];
+    const tokenInfo = tokenMap[normalizedToken];
 
-    if (!symbol) {
+    if (!tokenInfo) {
       // logger.warn(`[AngelWS-V2] Unknown token: ${normalizedToken}`);
       return;
     }
+
+    const symbol = tokenInfo.symbol;
+    const exchange = tokenInfo.exchange; // Available for future use if needed
 
     // Convert paise to rupees
     const price = last_traded_price / 100;
